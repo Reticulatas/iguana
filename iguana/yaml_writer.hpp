@@ -22,6 +22,10 @@ IGUANA_INLINE void render_yaml_value(Stream &ss, T &&t, size_t min_spaces) {
   to_yaml<Is_writing_escape>(std::forward<T>(t), ss, min_spaces);
 }
 
+template <bool Is_writing_escape = true, typename Stream, typename T,
+std::enable_if_t<variant_v<T>, int> = 0>
+IGUANA_INLINE void to_yaml_impl(Stream &s, T &&t);
+
 template <bool Is_writing_escape, bool appendLf = true, typename Stream,
           typename T, std::enable_if_t<string_container_v<T>, int> = 0>
 IGUANA_INLINE void render_yaml_value(Stream &ss, T &&t, size_t min_spaces) {
@@ -208,4 +212,17 @@ IGUANA_INLINE void to_yaml_adl(iguana_adl_t *p, const T &t,
                                std::string &pb_str) {
   to_yaml(t, pb_str);
 }
+
+template <bool Is_writing_escape, typename Stream, typename T,
+std::enable_if_t<variant_v<T>, int>>
+IGUANA_INLINE void to_yaml(Stream &s, T &&t) {
+	static_assert(!has_duplicate_type_v<std::remove_reference_t<T>>,
+		"don't allow same type in std::variant");
+	std::visit(
+		[&s](auto value) {
+		to_yaml<Is_writing_escape>(s, value);
+	},
+	t);
+}
+
 }  // namespace iguana

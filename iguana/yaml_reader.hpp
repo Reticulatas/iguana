@@ -528,6 +528,45 @@ IGUANA_INLINE void skip_object_value(It &&it, It &&end, size_t min_spaces) {
   }
 }
 
+template <typename value_type, typename U, typename It>
+IGUANA_INLINE bool from_yaml_variant_impl(U &value, It it, It end, It &temp_it,
+                                          It &temp_end) {
+	try {
+		value_type val;
+		from_yaml_impl(val, it, end);
+		value = val;
+		temp_it = it;
+		temp_end = end;
+		return true;
+	} catch (std::exception &ex) {
+		return false;
+	}
+}
+
+template <typename U, typename It, size_t... Idx>
+IGUANA_INLINE void from_yaml_variant(U &value, It &it, It &end,
+                                     std::index_sequence<Idx...>) {
+	static_assert(!has_duplicate_type_v<std::remove_reference_t<U>>,
+		"don't allow same type in std::variant");
+	bool r = false;
+	It temp_it = it;
+	It temp_end = end;
+	((void)(!r && (r = from_yaml_variant_impl<
+		variant_element_t<Idx, std::remove_reference_t<U>>>(
+			value, it, end, temp_it, temp_end),
+		true)),
+		...);
+	it = temp_it;
+	end = temp_end;
+}
+
+template <typename U, typename It, std::enable_if_t<variant_v<U>, int> = 0>
+IGUANA_INLINE void from_yaml_impl(U &value, It &&it, It &&end) {
+	from_yaml_variant(value, it, end,
+					  std::make_index_sequence<
+					  std::variant_size_v<std::remove_reference_t<U>>>{});
+}
+
 }  // namespace detail
 
 template <typename T, typename It, std::enable_if_t<refletable_v<T>, int>>
